@@ -138,11 +138,11 @@ document.getElementById('submit').onclick = async () => {
     petname = document.getElementById('petname').value;
 
     if (user && pwd && petname) {
-        // 檢查是否有其他帳號使用過相同的真名或暱稱
+        // 檢查是否有其他帳號使用過相同的名字或寵物暱稱
         const response = await fetch(`${apiUrl}/getScore?username=${user}`);
         const data = await response.json();
 
-        // 如果是首次登入（即為找不到該玩家帳號），創建新帳號，分數設為0
+        // 首次登入（即為找不到該玩家帳號），創建新帳號
         if (!data.exists) {
             await fetch(`${apiUrl}/createAccount`, {
                 method: 'POST',

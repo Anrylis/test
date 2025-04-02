@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Falling 小遊戲</title>
+   <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #loading {
+            display: block;
+            font-size: 24px;
+        }
+        #signInPage { 
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 80%;
+        }
+        button {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background-color: #dd00ff;
+            color: white;
+            cursor: pointer;
+            width: 80%;
+        }
+        button:hover {
+            background-color: #ad00b3;
+        }
+        #leaderboard {
+            margin-top: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+            min-width: 600px;
+        }
+        .highlight {
+            background-color: #e1ace1; /* purple */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+       #leaderboard table {
+            width: 100%;    
+            border-collapse: collapse;
+            max-height: 400px;  
+            overflow-y: auto;   
+            display: block;  
+        }
+
+        #leaderboard tbody {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style> 
+</head>
+<body>
+
+<!--loading介面-->
+<div id="loading">Loading...</div>
+
+<!--SignIn介面-->
+<div id="signInPage" style="display:none;">
+    <h2>Sign in</h2>
+    <input type="text" id="player" placeholder="ur real name" required>
+    <input type="text" id="nickname" placeholder="ur nickname" required>
+    <button id="submit">Submit</button>
+</div>
+
+<!--leaderBoard介面-->
+<div id="leaderboard" style="display:none;">
+    <h2>~ Falling Ball 榮譽榜 ~</h2>  
+    <table>
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Name</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody id="leaderboardsBody">
+        </tbody>
+    </table>
+</div>
+
+<script>
+const apiUrl = 'https://fallingball.onrender.com';  
+let user;
+let name;
+
+async function isServerOk() {
+    try {
+        const response = await fetch(`${apiUrl}/wakeup`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = await response.text();
+        if (data == '\"ok!\"') { 
+            // 隱藏 Loading ，顯示登入介面 
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('signInPage').style.display = 'flex';
+        } else {
+            console.error('未知錯誤：', data);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+document.getElementById('submit').onclick = async () => {
+    user = document.getElementById('player').value;  // 得到輸入欄位的內容
+    pwd = document.getElementById('password').value;
+    petname = document.getElementById('petname').value;
+
+    if (user && pwd && petname) {
+        // 檢查是否有其他帳號使用過相同的真名或暱稱
+        const response = await fetch(`${apiUrl}/getScore?username=${user}`);
+        const data = await response.json();
+
+        // 如果是首次登入（即為找不到該玩家帳號），創建新帳號，分數設為0
+        if (!data.exists) {
+            await fetch(`${apiUrl}/createAccount`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: user, password: pwd, petname: petname, hp:100, score:0 }),
+            });
+        } else {
+            //調試用
+            console.log("登入成功！");
+        }
+
+        // 隱藏登入介面，顯示排行榜
+        document.getElementById('signInPage').style.display = 'none';
+        document.getElementById('leaderboard').style.display = 'block';
+        updateLeaderboard();
+
+    } else {
+        alert('Please fill in all blanks.')
+    }
+};
+
+async function update(score) {
+    const response = await fetch(`${apiUrl}/getScore?username=${user}`);
+    const data = await response.json();
+
+    if (data && data.score < score) {
+        //使後台紀錄的分數是該玩家遊玩的歷史最高分
+        await fetch(`${apiUrl}/updateScore`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username: user, petname: name, score: score }),
+        });
+    }
+
+    // 更新排行榜
+    updateLeaderboard();
+}
+
+
+async function updateLeaderboard() {
+    const response = await fetch(`${apiUrl}/leaderboard`);
+    const data = await response.json();
+    data.sort((a, b) => b.score - a.score); // 按照最高分數紀錄由高至低排序
+
+    const tbody = document.getElementById('leaderboardsBody');
+    // 清空現有的表格行
+    tbody.innerHTML = '';
+
+    let num = 0;
+    data.forEach(account => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${num + 1}</td><td>${account.username}</td><td>${account.petname}</td><td>${account.score}</td>`;
+        tbody.appendChild(row);
+
+        // highlight當前玩家
+        if (account.username === user) {
+            row.classList.add('highlight');
+        }
+
+        num += 1;
+    });
+}
+
+window.onload = () => {
+    isServerOk();
+    
+    setInterval(() => {
+        updateLeaderboard();
+    }, 18000);  
+};
+</script>
+
+</body>
+</html>
